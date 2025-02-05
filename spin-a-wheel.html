@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wheel of Names</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="flex flex-col items-center justify-center h-screen bg-gray-100">
+    <div class="wheel-container flex flex-col items-center">
+        <canvas id="wheel" width="500" height="500" class="rounded-full border-4 border-gray-700"></canvas>
+        <div class="mt-4 flex gap-4">
+            <button id="spinButton" class="px-6 py-2 text-white bg-blue-600 rounded hover:bg-blue-700">Spin the Wheel</button>
+            <button id="resetButton" class="px-6 py-2 text-white bg-red-600 rounded hover:bg-red-700">Reset Wheel</button>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="winnerModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+        <div class="bg-white p-6 rounded shadow-md text-center">
+            <h2 class="text-2xl font-bold mb-4">Congratulations!</h2>
+            <p id="winnerName" class="text-lg text-gray-700"></p>
+            <button id="closeModal" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Close</button>
+        </div>
+    </div>
+
+    <canvas id="confettiCanvas" class="fixed top-0 left-0 w-full h-full pointer-events-none"></canvas>
+
+    <script>
+        const originalNames = ['Luca', 'Milo','Dash','Eli','Apollo','Izzy','Liam','Rudy','Munroe','Victor','Hayden','Daniel','Jojo','Ezra','Joaquin','Kellen','Everett','Hunter','Elliot'];
+        let names = [...originalNames];
+
+        const canvas = document.getElementById('wheel');
+        const ctx = canvas.getContext('2d');
+        const spinButton = document.getElementById('spinButton');
+        const resetButton = document.getElementById('resetButton');
+        const winnerModal = document.getElementById('winnerModal');
+        const winnerName = document.getElementById('winnerName');
+        const closeModal = document.getElementById('closeModal');
+        const confettiCanvas = document.getElementById('confettiCanvas');
+        const confettiCtx = confettiCanvas.getContext('2d');
+
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
+
+        const colors = ['#FF5733', '#33FF57', '#3357FF', '#FF33A6', '#FFC300', '#581845', '#00CED1'];
+        const highlightColor = '#FFFF00';
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = canvas.width / 2;
+        let currentAngle = 0;
+        let spinning = false;
+        let winningIndex = null;
+        let confettiParticles = [];
+
+        function drawWheel() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const sliceAngle = (2 * Math.PI) / names.length;
+
+            for (let i = 0; i < names.length; i++) {
+                const startAngle = currentAngle + i * sliceAngle;
+                const endAngle = startAngle + sliceAngle;
+
+                ctx.fillStyle = (i === winningIndex) ? highlightColor : colors[i % colors.length];
+
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(startAngle + sliceAngle / 2);
+                ctx.textAlign = 'right';
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 18px Arial';
+                ctx.fillText(names[i], radius - 30, 5);
+                ctx.restore();
+            }
+        }
+
+        function spinWheel() {
+            if (spinning || names.length <= 1) return;
+
+            spinning = true;
+            const spinDuration = 3000;
+            const maxSpeed = 20;
+
+            let startTime = null;
+            let totalRotation = Math.random() * (2 * Math.PI) + 4 * Math.PI;
+
+            function animate(timestamp) {
+                if (!startTime) startTime = timestamp;
+                const elapsed = timestamp - startTime;
+
+                if (elapsed < spinDuration) {
+                    const progress = elapsed / spinDuration;
+                    const easeOutFactor = Math.pow(1 - progress, 3);
+                    currentAngle += maxSpeed * easeOutFactor;
+                    drawWheel();
+                    requestAnimationFrame(animate);
+                } else {
+                    spinning = false;
+                    determineWinner();
+                    drawWheel();
+                    showWinnerModal();
+                    startConfetti();
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        function determineWinner() {
+            const sliceAngle = (2 * Math.PI) / names.length;
+            let adjustedAngle = (currentAngle % (2 * Math.PI)) + sliceAngle / 2;
+            winningIndex = Math.floor((adjustedAngle / sliceAngle) % names.length);
+        }
+
+        function showWinnerModal() {
+            if (names.length > 0) {
+                winnerName.textContent = names[winningIndex];
+                winnerModal.classList.remove('hidden');
+
+                names.splice(winningIndex, 1);
+                if (names.length === 0) {
+                    spinButton.disabled = true;
+                    spinButton.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            }
+        }
+
+        function resetWheel() {
+            names = [...originalNames];
+            spinButton.disabled = false;
+            spinButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            drawWheel();
+        }
+
+        function startConfetti() {
+            confettiParticles = [];
+            for (let i = 0; i < 100; i++) {
+                confettiParticles.push({
+                    x: Math.random() * confettiCanvas.width,
+                    y: Math.random() * confettiCanvas.height - confettiCanvas.height,
+                    velocityX: (Math.random() - 0.5) * 5,
+                    velocityY: Math.random() * 5 + 2,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    size: Math.random() * 5 + 2,
+                    rotation: Math.random() * 360
+                });
+            }
+            animateConfetti();
+        }
+
+        function animateConfetti() {
+            confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            confettiParticles.forEach((particle, index) => {
+                particle.x += particle.velocityX;
+                particle.y += particle.velocityY;
+                particle.rotation += 5;
+                confettiCtx.fillStyle = particle.color;
+                confettiCtx.fillRect(particle.x, particle.y, particle.size, particle.size);
+
+                if (particle.y > confettiCanvas.height) {
+                    confettiParticles.splice(index, 1);
+                }
+            });
+
+            if (confettiParticles.length > 0) {
+                requestAnimationFrame(animateConfetti);
+            }
+        }
+
+        closeModal.addEventListener('click', () => {
+            winnerModal.classList.add('hidden');
+            drawWheel();
+        });
+
+        spinButton.addEventListener('click', spinWheel);
+        resetButton.addEventListener('click', resetWheel);
+
+        drawWheel();
+    </script>
+</body>
+</html>
